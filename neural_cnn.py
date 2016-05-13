@@ -279,8 +279,10 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 def main(num_epochs=40,percent_validation=0.05,percent_test=0.10,edge_len=11,
 			num_regularization_params = 20):
 	rng_state = np.random.get_state()
-	#folder = '/Users/dominicdelgado/Documents/Radiogenomics/bratsHGG/jpeg/'
-	folder = '/home/ubuntu/Neural_CNN/jpeg/'
+	if(platform.system() == 'Darwin'):
+		folder = '/Users/dominicdelgado/Documents/Radiogenomics/bratsHGG/jpeg/'
+	else:
+		folder = '/home/ubuntu/data/jpeg/'
 	
 	T1_mean, T1c_mean, T2_mean, FLAIR_mean = get_all_mean_volumes(folder)
 
