@@ -27,8 +27,12 @@ NUM_MODALITIES = 4
 NUM_PATIENTS = 220
 UNIMPLEMENTED = None
 
-def BinaryImageCrossEntropyLoss():
-	return UNIMPLEMENTED
+'''
+Take in k x n x n matrix of softmax predictions and 1-hot k x n x n target matrix
+and compute the categorical cross-entropy sum(targets .* log(prediction))
+'''
+def BinaryImageCrossEntropyLoss(prediction,targets):
+	return -prediction * T.log(targets)
 
 def get_mean_volume(folder, modality):
 	mean_volume = np.zeros((NUM_SLICES, PHOTO_WIDTH, PHOTO_WIDTH))
@@ -90,7 +94,10 @@ def load_data(folder, patient_list, dim, num_slices,
 		slices = np.floor(np.random.rand(num_slices)*(NUM_SLICES-dim) + min_slice)
 		
 		# Load T1c images, X.shape =  (num_slices,dim,PHOTO_WIDTH,PHOTO_WIDTH)
-		T1c = folder + 'pat' + str(patient_num) + '/MR_T1c/'
+		if(platform.system() == 'Darwin'):
+			T1c = folder + 'pat' + str(patient_num) + '/MR_T1c/'
+		else:
+			T1c = folder + 'pat' + str(patient_num) + '/MR_T1C/'
 		T1c_volume = load_examples(folder, slices, dim, T1c_mean)
 		patient_X = T1c_volume
 
@@ -119,8 +126,18 @@ def load_data(folder, patient_list, dim, num_slices,
 		Y = np.concatenate((Y,patient_Y),0)
 
 
-def build_net():
-	return UNIMPLEMENTED
+def build_net((filter_size = 11, num_channels = NUM_MODALITIES, num_classes = 2, 
+				input_var = None):
+	network = InputLayer(
+			shape=(None, num_channels, PHOTO_WIDTH, PHOTO_WIDTH),
+			input_var=input_var)
+	network = ConvLayer(network, num_filters=72, filter_size=filter_size)
+	network = NormLayer(network)
+	network = ConvLayer(DropoutLayer(network, p=0.5), num_filters=256, filter_size=3)
+	network = ConvLayer(DropoutLayer(network, p=0.5), num_filters=256, filter_size=3)
+	network = ConvLayer(DropoutLayer(network, p=0.5), num_filters=num_classes, 
+						filter_size=3, nonlinearity=lasagne.nonlinearities.softmax)
+	return network
 
 def train_net(folder, train_set, validation_set, test_set, edge_len, 
 				T1_mean, T1c_mean, T2_mean, FLAIR_mean, num_epochs = 500, 
@@ -140,7 +157,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	# Create a loss expression for training, i.e., a scalar objective we want
 	# to minimize (for our multi-class problem, it is the cross-entropy loss):
 	prediction = lasagne.layers.get_output(network)
-	loss = BinaryImageCrossEntropyLoss(prediction, target_var) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
+	loss = lasagne.objectives.aggregate(BinaryImageCrossEntropyLoss(prediction, target_var)) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
 	loss = loss.mean()
 	# We could add some weight decay as well here, see lasagne.regularization.
 
@@ -154,7 +171,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	# here is that we do a deterministic forward pass through the network,
 	# disabling dropout layers.
 	test_prediction = lasagne.layers.get_output(network, deterministic=True)
-	test_loss = BinaryImageCrossEntropyLoss(prediction, target_var) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
+	test_loss = lasagne.objectives.aggregate(BinaryImageCrossEntropyLoss(prediction, target_var)) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
 	test_loss = test_loss.mean()
 	# As a bonus, also create an expression for the classification accuracy:
 	test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
