@@ -147,7 +147,7 @@ def load_data(folder, patient_list, dim, num_pixels,
 	Y = Y>0
 	return X, Y.astype(np.int32)
 
-def build_cnn(filter_size = 33, num_neurons = 128, num_classes = 5, 
+def build_cnn(filter_size = 11, num_neurons = 128, num_classes = 5, 
 				input_var = None):
 	network = InputLayer(
 			shape=(None, NUM_MODALITIES*filter_size, filter_size, filter_size),
@@ -186,8 +186,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	# parameters at each training step. Here, we'll use Stochastic Gradient
 	# Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
 	params = lasagne.layers.get_all_params(network, trainable=True)
-	updates = lasagne.updates.nesterov_momentum(
-						loss, params, learning_rate=0.01, momentum=0.9)
+	updates = lasagne.updates.adam(loss, params, learning_rate=0.001)
 
 	# Create a loss expression for validation/testing. The crucial difference
 	# here is that we do a deterministic forward pass through the network,
@@ -212,7 +211,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	'''
 	patients_per_batch = 1
 	pixels_per_batch = 3300
-	pixels_per_patient = 5 * pixels_per_patient
+	pixels_per_patient = 1 * pixels_per_patient
 	iterations_per_patient = int(np.ceil(pixels_per_patient/(pixels_per_batch*patients_per_batch)))
 
 	print("Starting training...")
@@ -268,7 +267,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 
 	return val_acc/val_batches, test_acc/test_batches
 
-def main(num_epochs=500,percent_validation=0.05,percent_test=0.10,edge_len=33,
+def main(num_epochs=40,percent_validation=0.05,percent_test=0.10,edge_len=33,
 			num_regularization_params = 20):
 	rng_state = np.random.get_state()
 	folder = '/Users/dominicdelgado/Documents/Radiogenomics/bratsHGG/jpeg/'
