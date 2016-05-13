@@ -31,11 +31,9 @@ def get_mean_volume(folder, modality):
 	mean_volume = np.zeros((NUM_SLICES, PHOTO_WIDTH, PHOTO_WIDTH))
 	patient_volume = np.zeros((NUM_SLICES, PHOTO_WIDTH, PHOTO_WIDTH))
 	for patient_num in range(NUM_PATIENTS):
-		sys.stdout.write(str(patient_num)+' ')
 		path = folder + 'pat' + str(patient_num) + '/' + modality + '/'
 		patient_volume = load_volume(path)
 		mean_volume += patient_volume.astype(np.float32) / NUM_PATIENTS
-	sys.stdout.write('\n')
 	return mean_volume
 
 def get_all_mean_volumes(folder):
@@ -108,8 +106,6 @@ def load_data(folder, patient_list, dim, num_pixels,
 		slices = nonzero_pixels[indices,0]
 		rows = nonzero_pixels[indices,1]
 		cols = nonzero_pixels[indices,2]
-
-		#pdb.set_trace()
 
 		volume -= T1c_mean
 		T1c_cubes = get_cubes(volume, dim, num_pixels, slices, rows, cols)
@@ -224,7 +220,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	'''
 	patients_per_batch = 1
 	pixels_per_batch = 3300
-	pixels_per_patient = 1 * pixels_per_patient
+	pixels_per_patient = 1 * pixels_per_batch
 	iterations_per_patient = int(np.ceil(pixels_per_patient/(pixels_per_batch*patients_per_batch)))
 
 	print("Starting training...")
