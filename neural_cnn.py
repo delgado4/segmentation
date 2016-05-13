@@ -31,11 +31,9 @@ def get_mean_volume(folder, modality):
 	mean_volume = np.zeros((NUM_SLICES, PHOTO_WIDTH, PHOTO_WIDTH))
 	patient_volume = np.zeros((NUM_SLICES, PHOTO_WIDTH, PHOTO_WIDTH))
 	for patient_num in range(NUM_PATIENTS):
-		sys.stdout.write(str(patient_num)+' ')
 		path = folder + 'pat' + str(patient_num) + '/' + modality + '/'
 		patient_volume = load_volume(path)
 		mean_volume += patient_volume.astype(np.float32) / NUM_PATIENTS
-	sys.stdout.write('\n')
 	return mean_volume
 
 def get_all_mean_volumes(folder):
@@ -109,8 +107,6 @@ def load_data(folder, patient_list, dim, num_pixels,
 		rows = nonzero_pixels[indices,1]
 		cols = nonzero_pixels[indices,2]
 
-		#pdb.set_trace()
-
 		volume -= T1c_mean
 		T1c_cubes = get_cubes(volume, dim, num_pixels, slices, rows, cols)
 		X = T1c_cubes
@@ -160,7 +156,7 @@ def load_data(folder, patient_list, dim, num_pixels,
 	Y = Y>0
 	return X, Y.astype(np.int32)
 
-def build_cnn(filter_size = 11, num_neurons = 128, num_classes = 5, 
+def build_cnn(filter_size = 33, num_neurons = 128, num_classes = 5, 
 				input_var = None):
 	network = InputLayer(
 			shape=(None, NUM_MODALITIES*filter_size, filter_size, filter_size),
@@ -186,7 +182,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	target_var = T.ivector('targets')
 
 	# Create neural network
-	network = build_cnn(input_var=input_var)
+	network = build_cnn(input_var=input_var, filter_size=edge_len)
 
 	# Create a loss expression for training, i.e., a scalar objective we want
 	# to minimize (for our multi-class problem, it is the cross-entropy loss):
@@ -224,7 +220,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	'''
 	patients_per_batch = 1
 	pixels_per_batch = 3300
-	pixels_per_patient = 1 * pixels_per_patient
+	pixels_per_patient = 1 * pixels_per_batch
 	iterations_per_patient = int(np.ceil(pixels_per_patient/(pixels_per_batch*patients_per_batch)))
 
 	print("Starting training...")
@@ -280,7 +276,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 
 	return val_acc/val_batches, test_acc/test_batches
 
-def main(num_epochs=40,percent_validation=0.05,percent_test=0.10,edge_len=33,
+def main(num_epochs=40,percent_validation=0.05,percent_test=0.10,edge_len=11,
 			num_regularization_params = 20):
 	rng_state = np.random.get_state()
 	#folder = '/Users/dominicdelgado/Documents/Radiogenomics/bratsHGG/jpeg/'
