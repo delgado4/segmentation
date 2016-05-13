@@ -17,6 +17,7 @@ import time
 import theano
 import theano.tensor as T
 import pickle
+import platform
 
 # For DEBUG
 import pdb
@@ -30,16 +31,25 @@ def get_mean_volume(folder, modality):
 	mean_volume = np.zeros((NUM_SLICES, PHOTO_WIDTH, PHOTO_WIDTH))
 	patient_volume = np.zeros((NUM_SLICES, PHOTO_WIDTH, PHOTO_WIDTH))
 	for patient_num in range(NUM_PATIENTS):
+		sys.stdout.write(str(patient_num)+' ')
 		path = folder + 'pat' + str(patient_num) + '/' + modality + '/'
 		patient_volume = load_volume(path)
 		mean_volume += patient_volume.astype(np.float32) / NUM_PATIENTS
+	sys.stdout.write('\n')
 	return mean_volume
 
 def get_all_mean_volumes(folder):
 	print('Calculating mean images...')
+	print('MR_T1')
 	T1_mean = get_mean_volume(folder, 'MR_T1')
-	T1c_mean = get_mean_volume(folder, 'MR_T1c')
-	T2_mean = get_mean_volume(folder, 'MR_T12')
+	print('MR_T1C')
+	if(platform.system() == 'Darwin'):
+		T1c_mean = get_mean_volume(folder, 'MR_T1c')
+	else:
+		T1c_mean = get_mean_volume(folder, 'MR_T1C')
+	print('MR_T2')
+	T2_mean = get_mean_volume(folder, 'MR_T2')
+	print('MR_FLAIR')
 	FLAIR_mean = get_mean_volume(folder, 'MR_FLAIR')
 	return T1_mean, T1c_mean, T2_mean, FLAIR_mean
 
@@ -76,7 +86,10 @@ def load_data(folder, patient_list, dim, num_pixels,
 
 		
 		# Load T1c images, X.shape = (num_pixels, 2*dim, dim, dim)
-		T1c = folder + 'pat' + str(patient_num) + '/MR_T1c/'
+		if(platform.system() == 'Darwin'):
+			T1c = folder + 'pat' + str(patient_num) + '/MR_T1c/'
+		else:
+			T1c = folder + 'pat' + str(patient_num) + '/MR_T1C/'
 		volume = load_volume(T1c)
 
 		# Calculate locations of nonzero pixels in T1c
@@ -270,7 +283,8 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 def main(num_epochs=40,percent_validation=0.05,percent_test=0.10,edge_len=33,
 			num_regularization_params = 20):
 	rng_state = np.random.get_state()
-	folder = '/Users/dominicdelgado/Documents/Radiogenomics/bratsHGG/jpeg/'
+	#folder = '/Users/dominicdelgado/Documents/Radiogenomics/bratsHGG/jpeg/'
+	folder = '/home/ubuntu/Neural_CNN/jpeg/'
 	
 	T1_mean, T1c_mean, T2_mean, FLAIR_mean = get_all_mean_volumes(folder)
 
