@@ -17,6 +17,7 @@ import time
 import theano
 import theano.tensor as T
 import pickle
+import platform
 
 # For DEBUG
 import pdb
