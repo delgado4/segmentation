@@ -65,8 +65,8 @@ of pixel neighborhood, and a set of patients, generates volumes from
 num_pixels random locations in each volume. The volumes are stacks of 
 num_pixels x num_pixels x num_pixels cubes for each modality.
 '''
-def load_data(folder, patient_list, dim, num_pixels, 
-				T1_mean, T1c_mean, T2_mean, FLAIR_mean):
+def load_data(folder, patient_list, dim, num_pixels):#, 
+				#'''T1_mean, T1c_mean, T2_mean, FLAIR_mean'''):
 
 	# Note that dim must be an odd number
 	def get_cubes(volume, dim, num_pixels, slices, rows, cols):
@@ -79,10 +79,7 @@ def load_data(folder, patient_list, dim, num_pixels,
 			cubes[i,:,:,:] = temp
 		return cubes
 
-	def sample_volume(folder, patient_num, dim, num_pixels,
-					T1_mean, T1c_mean, T2_mean, FLAIR_mean):
-
-		
+	def sample_volume(folder, patient_num, dim, num_pixels):''',T1_mean, T1c_mean, T2_mean, FLAIR_mean):'''
 		# Load T1c images, X.shape = (num_pixels, 2*dim, dim, dim)
 		if(platform.system() == 'Darwin'):
 			T1c = folder + 'pat' + str(patient_num) + '/MR_T1c/'
@@ -107,25 +104,25 @@ def load_data(folder, patient_list, dim, num_pixels,
 		rows = nonzero_pixels[indices,1]
 		cols = nonzero_pixels[indices,2]
 
-		volume -= T1c_mean
+		#volume -= T1c_mean
 		T1c_cubes = get_cubes(volume, dim, num_pixels, slices, rows, cols)
 		X = T1c_cubes
 
 		# Load T1 images, X.shape = (num_pixels, dim, dim, dim)
 		T1 = folder + 'pat' + str(patient_num) + '/MR_T1/'
-		volume = load_volume(T1) - T1_mean
+		#volume = load_volume(T1) - T1_mean
 		T1_cubes = get_cubes(volume, dim, num_pixels, slices, rows, cols)
 		X = np.concatenate((X,T1_cubes),1)
 
 		# Load T2 images, X.shape = (num_pixels, 3*dim, dim, dim)
 		T2 = folder + 'pat' + str(patient_num) + '/MR_T2/'
-		volume = load_volume(T2) - T2_mean
+		#volume = load_volume(T2) - T2_mean
 		T2_cubes = get_cubes(volume, dim, num_pixels, slices, rows, cols)
 		X = np.concatenate((X,T2_cubes),1)
 
 		# Load FLAIR images, X.shape = (num_pixels, 4*dim, dim, dim)
 		FLAIR = folder + 'pat' + str(patient_num) + '/MR_FLAIR/'
-		volume = load_volume(FLAIR) - FLAIR_mean
+		#volume = load_volume(FLAIR) - FLAIR_mean
 		FLAIR_cubes = get_cubes(volume, dim, num_pixels, slices, rows, cols)
 		X = np.concatenate((X,FLAIR_cubes),1)
 
@@ -146,8 +143,8 @@ def load_data(folder, patient_list, dim, num_pixels,
 
 	index = 0
 	for patient in patient_list:
-		X_samples, Y_samples = sample_volume(folder, patient, dim, num_pixels,
-			T1_mean, T1c_mean, T2_mean, FLAIR_mean)
+		X_samples, Y_samples = sample_volume(folder, patient, dim, num_pixels):''',
+			T1_mean, T1c_mean, T2_mean, FLAIR_mean)'''
 		X[index:index+num_pixels,:,:,:] = X_samples
 		Y[index:index+num_pixels] = Y_samples
 		index += 1
@@ -195,7 +192,8 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	# parameters at each training step. Here, we'll use Stochastic Gradient
 	# Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
 	params = lasagne.layers.get_all_params(network, trainable=True)
-	updates = lasagne.updates.adam(loss, params, learning_rate=0.001)
+	updates = lasagne.updates.nesterov_momentum(loss,params, learning_rate=0.01)
+	#adam(loss, params, learning_rate=0.001)
 
 	# Create a loss expression for validation/testing. The crucial difference
 	# here is that we do a deterministic forward pass through the network,
@@ -232,7 +230,8 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 		# "Full pass" over patients
 		for patient in train_set:
 			for i in range(iterations_per_patient):
-				inputs, targets = load_data(folder, np.asarray([patient]), edge_len, pixels_per_batch, T1_mean, T1c_mean, T2_mean, FLAIR_mean)
+				inputs, targets = load_data(folder, np.asarray([patient]), edge_len, pixels_per_batch):''', T1_mean, T1c_mean, T2_mean, FLAIR_mean)'''
+				#pdb.set_trace()
 				assert len(inputs) == len(targets)
 				print("Made it past data loading")
 				train_err += train_fn(inputs, targets)
@@ -276,7 +275,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 
 	return val_acc/val_batches, test_acc/test_batches
 
-def main(num_epochs=40,percent_validation=0.05,percent_test=0.10,edge_len=11,
+def main(num_epochs=40,percent_validation=0.05,percent_test=0.10,edge_len=33,
 			num_regularization_params = 20):
 	rng_state = np.random.get_state()
 	if(platform.system() == 'Darwin'):
@@ -284,8 +283,8 @@ def main(num_epochs=40,percent_validation=0.05,percent_test=0.10,edge_len=11,
 	else:
 		folder = '/home/ubuntu/data/jpeg/'
 	
-	T1_mean, T1c_mean, T2_mean, FLAIR_mean = get_all_mean_volumes(folder)
-
+	'''T1_mean, T1c_mean, T2_mean, FLAIR_mean = get_all_mean_volumes(folder)
+	'''
 	# Generate test, training, and validation sets
 	patient_list = range(NUM_PATIENTS)
 	np.random.shuffle(patient_list)
@@ -312,9 +311,9 @@ def main(num_epochs=40,percent_validation=0.05,percent_test=0.10,edge_len=11,
 		val_pct, test_pct = train_net(folder = folder, train_set=train_set, 
 					validation_set=validation_set, test_set=test_set, 
 					num_epochs = num_epochs, l1_reg = l1_reg, l2_reg = l2_reg,
-					edge_len = edge_len,
+					edge_len = edge_len)''',
 					T1_mean=T1_mean, T1c_mean=T1c_mean, T2_mean=T2_mean, 
-					FLAIR_mean=FLAIR_mean)
+					FLAIR_mean=FLAIR_mean)'''
 		if (not data_valid) or (test_pct > best_test_pct):
 			best_l1 = l1_reg[0]
 			best_l2 = l2_reg[0]
