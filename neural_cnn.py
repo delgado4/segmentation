@@ -52,12 +52,12 @@ def get_all_mean_volumes(folder):
 	return T1_mean, T1c_mean, T2_mean, FLAIR_mean
 
 def load_volume(folder):
-		vol = np.zeros((NUM_SLICES, PHOTO_WIDTH, PHOTO_WIDTH))
-		im = np.zeros((PHOTO_WIDTH, PHOTO_WIDTH))
-		for slice in range(0,NUM_SLICES):
-			im = scipy.misc.imread(folder + str(slice) + '.jpeg')
-			vol[slice,:,:] = im
-		return vol
+	vol = np.zeros((NUM_SLICES, PHOTO_WIDTH, PHOTO_WIDTH))
+	im = np.zeros((PHOTO_WIDTH, PHOTO_WIDTH))
+	for slice in range(0,NUM_SLICES):
+		im = scipy.misc.imread(folder + str(slice) + '.jpeg')
+		vol[slice,:,:] = im	
+	return vol
 
 '''
 Given the data location, edge length 
@@ -65,9 +65,8 @@ of pixel neighborhood, and a set of patients, generates volumes from
 num_pixels random locations in each volume. The volumes are stacks of 
 num_pixels x num_pixels x num_pixels cubes for each modality.
 '''
-def load_data(folder, patient_list, dim, num_pixels):#, 
-				#'''T1_mean, T1c_mean, T2_mean, FLAIR_mean'''):
-
+def load_data(folder, patient_list, dim, num_pixels,
+				T1_mean, T1c_mean, T2_mean, FLAIR_mean):
 	# Note that dim must be an odd number
 	def get_cubes(volume, dim, num_pixels, slices, rows, cols):
 		half_len = (dim-1)/2
@@ -76,10 +75,15 @@ def load_data(folder, patient_list, dim, num_pixels):#,
 			temp = volume[slices[i]-half_len:slices[i]+half_len+1,
 							rows[i]-half_len:rows[i]+half_len+1,
 							cols[i]-half_len:cols[i]+half_len+1]
+			if(temp.shape != (33,33,33)):
+				pdb.set_trace()
 			cubes[i,:,:,:] = temp
 		return cubes
 
-	def sample_volume(folder, patient_num, dim, num_pixels):''',T1_mean, T1c_mean, T2_mean, FLAIR_mean):'''
+	def sample_volume(folder, patient_num, dim, num_pixels,
+					T1_mean, T1c_mean, T2_mean, FLAIR_mean):
+
+		
 		# Load T1c images, X.shape = (num_pixels, 2*dim, dim, dim)
 		if(platform.system() == 'Darwin'):
 			T1c = folder + 'pat' + str(patient_num) + '/MR_T1c/'
@@ -104,25 +108,27 @@ def load_data(folder, patient_list, dim, num_pixels):#,
 		rows = nonzero_pixels[indices,1]
 		cols = nonzero_pixels[indices,2]
 
-		#volume -= T1c_mean
+		#pdb.set_trace()
+
+		volume -= T1c_mean
 		T1c_cubes = get_cubes(volume, dim, num_pixels, slices, rows, cols)
 		X = T1c_cubes
 
 		# Load T1 images, X.shape = (num_pixels, dim, dim, dim)
 		T1 = folder + 'pat' + str(patient_num) + '/MR_T1/'
-		#volume = load_volume(T1) - T1_mean
+		volume = load_volume(T1) - T1_mean
 		T1_cubes = get_cubes(volume, dim, num_pixels, slices, rows, cols)
 		X = np.concatenate((X,T1_cubes),1)
 
 		# Load T2 images, X.shape = (num_pixels, 3*dim, dim, dim)
 		T2 = folder + 'pat' + str(patient_num) + '/MR_T2/'
-		#volume = load_volume(T2) - T2_mean
+		volume = load_volume(T2) - T2_mean
 		T2_cubes = get_cubes(volume, dim, num_pixels, slices, rows, cols)
 		X = np.concatenate((X,T2_cubes),1)
 
 		# Load FLAIR images, X.shape = (num_pixels, 4*dim, dim, dim)
 		FLAIR = folder + 'pat' + str(patient_num) + '/MR_FLAIR/'
-		#volume = load_volume(FLAIR) - FLAIR_mean
+		volume = load_volume(FLAIR) - FLAIR_mean
 		FLAIR_cubes = get_cubes(volume, dim, num_pixels, slices, rows, cols)
 		X = np.concatenate((X,FLAIR_cubes),1)
 
@@ -143,15 +149,15 @@ def load_data(folder, patient_list, dim, num_pixels):#,
 
 	index = 0
 	for patient in patient_list:
-		X_samples, Y_samples = sample_volume(folder, patient, dim, num_pixels):''',
-			T1_mean, T1c_mean, T2_mean, FLAIR_mean)'''
+		X_samples, Y_samples = sample_volume(folder, patient, dim, num_pixels, 
+											T1_mean, T1c_mean, T2_mean, FLAIR_mean)
 		X[index:index+num_pixels,:,:,:] = X_samples
 		Y[index:index+num_pixels] = Y_samples
 		index += 1
 	
 	# We only care about whether this is cancer or not right now
 	Y = Y>0
-	return X, Y.astype(np.int32)
+	return X.astype(np.float32), Y.astype(np.int32)
 
 def build_cnn(filter_size = 33, num_neurons = 128, num_classes = 5, 
 				input_var = None):
@@ -161,14 +167,14 @@ def build_cnn(filter_size = 33, num_neurons = 128, num_classes = 5,
 	network = ConvLayer(network, num_filters=72, filter_size=filter_size)
 	network = NormLayer(network)
 	network = DenseLayer(DropoutLayer(network, p=0.5), num_units=num_neurons)
-	#network = DenseLayer(DropoutLayer(network, p=0.5), num_units=num_neurons)
+	network = DenseLayer(DropoutLayer(network, p=0.5), num_units=num_neurons)
 	network = DenseLayer(DropoutLayer(network, p=0.5), num_units=num_classes,
 							nonlinearity=lasagne.nonlinearities.softmax)
 	return network
 
-def train_net(folder, train_set, validation_set, test_set, edge_len, 
-				T1_mean, T1c_mean, T2_mean, FLAIR_mean, num_epochs = 500, 
-				l1_reg = 0, l2_reg = 0):
+def train_net(folder, train_set, validation_set, test_set, edge_len, num_epochs = 500, 
+				l1_reg = 0, l2_reg = 0, learn_rate = 0.001, 
+				T1_mean = None, T1c_mean = None, T2_mean = None, FLAIR_mean = None):
 	'''
 	Note: The following setup code is from the mnist.py code from lasagne examples.
 	The testing structure was changed to match my data setup
@@ -179,7 +185,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	target_var = T.ivector('targets')
 
 	# Create neural network
-	network = build_cnn(input_var=input_var, filter_size=edge_len)
+	network = build_cnn(input_var=input_var)
 
 	# Create a loss expression for training, i.e., a scalar objective we want
 	# to minimize (for our multi-class problem, it is the cross-entropy loss):
@@ -188,16 +194,14 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	loss = loss.mean()
 	# We could add some weight decay as well here, see lasagne.regularization.
 
-	# Create update expressions for training, i.e., how to modify the
-	# parameters at each training step. Here, we'll use Stochastic Gradient
-	# Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
+	# Perform updates using Adam
 	params = lasagne.layers.get_all_params(network, trainable=True)
-	updates = lasagne.updates.nesterov_momentum(loss,params, learning_rate=0.01)
-	#adam(loss, params, learning_rate=0.001)
+	updates = lasagne.updates.adam(loss, params, learning_rate=learn_rate)
 
 	# Create a loss expression for validation/testing. The crucial difference
 	# here is that we do a deterministic forward pass through the network,
-	# disabling dropout layers.
+	# disabling dropout layers. 
+	# Here we're using so-called "elastic net" regulization
 	test_prediction = lasagne.layers.get_output(network, deterministic=True)
 	test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
 															target_var) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
@@ -210,60 +214,80 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	# the updates dictionary) and returning the corresponding training loss:
 	train_fn = theano.function([input_var, target_var], loss, updates=updates)
 
+	train_acc_fn = theano.function([input_var, target_var], test_acc)
+
 	# Compile a second function computing the validation loss and accuracy:
 	val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
 
-	'''
-	TODO: Change these to reasonable numbers after testing
-	'''
-	patients_per_batch = 1
+	patients_per_batch = 5
 	pixels_per_batch = 3300
-	pixels_per_patient = 1 * pixels_per_batch
-	iterations_per_patient = int(np.ceil(pixels_per_patient/(pixels_per_batch*patients_per_batch)))
+	pixels_per_patient = pixels_per_batch*2 
+	iterations_per_patient = 2 
+	#int(np.ceil(pixels_per_patient/(pixels_per_batch*patients_per_batch)))
+
 
 	print("Starting training...")
 	for epoch in range(num_epochs):
+		'''
+		Temporarily reduce # patients/iteration to 1
+		'''
+		train_index = map(int,np.floor(np.random.rand(patients_per_batch)*np.asarray(train_set).shape[0]))
+		train_batch = [train_set[i] for i in train_index]
+
+		val_index = map(int,np.floor(np.random.rand(1)*np.asarray(train_set).shape[0]))
+		val_batch = [train_set[i] for i in train_index]
+
 		print("Starting epoch " + str(epoch))
 		train_err = 0
+		train_acc = 0
 		train_batches = 0
 		start_time = time.time()
 		# "Full pass" over patients
-		for patient in train_set:
+		for patient in train_batch:
 			for i in range(iterations_per_patient):
-				inputs, targets = load_data(folder, np.asarray([patient]), edge_len, pixels_per_batch):''', T1_mean, T1c_mean, T2_mean, FLAIR_mean)'''
+				inputs, targets = load_data(folder, np.asarray([patient]), edge_len, pixels_per_batch, 
+											T1_mean, T1c_mean, T2_mean, FLAIR_mean)
 				#pdb.set_trace()
 				assert len(inputs) == len(targets)
-				print("Made it past data loading")
+				print 'Training on patient %d...' % patient
 				train_err += train_fn(inputs, targets)
+				print 'Computing training accuracy'
+				train_acc += train_acc_fn(inputs, targets)
 				train_batches += 1
 
-        # And a "full pass" over the validation data:
-        val_err = 0
-        val_acc = 0
-        val_batches = 0
-        for patient in validation_set:
-        	for i in range(iterations_per_patient):
-	            inputs, targets = load_data(folder, np.asarray([patient]), edge_len, pixels_per_batch, T1_mean, T1c_mean, T2_mean, FLAIR_mean)
-	            err, acc = val_fn(inputs, targets)
-	            val_err += err
-	            val_acc += acc
-	            val_batches += 1
+        	# And a "full pass" over the validation data:
+        	val_err = 0
+        	val_acc = 0
+        	val_batches = 0
+		print 'Validating...'
+        	for patient in val_batch:
+        		for i in range(iterations_per_patient):
+	            		inputs, targets = load_data(folder, np.asarray([patient]), edge_len, pixels_per_batch, 
+	            			T1_mean, T1c_mean, T2_mean, FLAIR_mean)
+	            		err, acc = val_fn(inputs, targets)
+	            		val_err += err
+	            		val_acc += acc
+	            		val_batches += 1
 
-        # Then we print the results for this epoch:
-        print("Epoch {} of {} took {:.3f}s".format(
-            epoch + 1, num_epochs, time.time() - start_time))
-        print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
-        print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
-        print("  validation accuracy:\t\t{:.2f} %".format(
-            val_acc / val_batches * 100))
+        	# Then we print the results for this epoch:
+        	print("Epoch {} of {} took {:.3f}s".format(
+            		epoch + 1, num_epochs, time.time() - start_time))
+        	print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
+        	print("  training accuracy:\t\t{:.2f} %".format(
+            		train_acc / val_batches * 100))
+        	print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
+        	print("  validation accuracy:\t\t{:.2f} %".format(
+            		val_acc / val_batches * 100))
 
-    # After training, we compute and print the test error:
+    	# After training, we compute and print the test error:
 	test_err = 0
 	test_acc = 0
 	test_batches = 0
+	print 'Testing...'
 	for patient in test_set:
 		for i in range(iterations_per_patient):
-			inputs, targets = load_data(folder, np.asarray([patient]), edge_len, pixels_per_batch, T1_mean, T1c_mean, T2_mean, FLAIR_mean)
+			inputs, targets = load_data(folder, np.asarray([patient]), edge_len, pixels_per_batch, 
+													T1_mean, T1c_mean, T2_mean, FLAIR_mean)
 			err, acc = val_fn(inputs, targets)
 			test_err += err
 			test_acc += acc
@@ -275,16 +299,18 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 
 	return val_acc/val_batches, test_acc/test_batches
 
-def main(num_epochs=40,percent_validation=0.05,percent_test=0.10,edge_len=33,
-			num_regularization_params = 20):
+def main(num_epochs=50,percent_validation=0.05,percent_test=0.10,edge_len=33,
+			num_regularization_params = 10):
 	rng_state = np.random.get_state()
+
 	if(platform.system() == 'Darwin'):
 		folder = '/Users/dominicdelgado/Documents/Radiogenomics/bratsHGG/jpeg/'
 	else:
 		folder = '/home/ubuntu/data/jpeg/'
-	
-	'''T1_mean, T1c_mean, T2_mean, FLAIR_mean = get_all_mean_volumes(folder)
-	'''
+
+	# Calculate mean images
+	T1_mean, T1c_mean, T2_mean, FLAIR_mean = get_all_mean_volumes(folder)
+
 	# Generate test, training, and validation sets
 	patient_list = range(NUM_PATIENTS)
 	np.random.shuffle(patient_list)
@@ -297,35 +323,44 @@ def main(num_epochs=40,percent_validation=0.05,percent_test=0.10,edge_len=33,
 	validation_set = patient_list[num_train+num_test:]
 
 	# Try some different parameters from the range 1e-6 to 1e-2
-	l1_reg = 10**(np.random.rand(num_regularization_params)*4 - 4)
-	l2_reg = 10**(np.random.rand(num_regularization_params)*4 - 4)
+	#l1_reg = 10**(-1*(np.random.rand(num_regularization_params)*4 + 3))
+	#l2_reg = 10**(-1*(np.random.rand(num_regularization_params)*4 + 3))
+	#lr = 10 ** (-1 * (np.random.rand(num_regularization_params) * 3 + 3.5))
+	#lr = lr.astype(np.float32)
+	l1_reg = np.asarray([0])
+	l2_reg = np.asarray([0])
+	lr = np.asarray([0.001])
+	lr = lr.astype(np.float32)
 
 	best_l1 = l1_reg[0]
 	best_l2 = l2_reg[0]
 	best_test_pct = 0
 	best_val_pct = 0
+	best_lr = 0
 	data_valid = False
+
+	pdb.set_trace()
 
 	# Train network
 	for i in range(l2_reg.shape[0]):
 		val_pct, test_pct = train_net(folder = folder, train_set=train_set, 
 					validation_set=validation_set, test_set=test_set, 
-					num_epochs = num_epochs, l1_reg = l1_reg, l2_reg = l2_reg,
-					edge_len = edge_len)''',
+					num_epochs = num_epochs, l1_reg = l1_reg[i], 
+					l2_reg = l2_reg[i], learn_rate = lr[i],
+					edge_len = edge_len,
 					T1_mean=T1_mean, T1c_mean=T1c_mean, T2_mean=T2_mean, 
-					FLAIR_mean=FLAIR_mean)'''
+					FLAIR_mean=FLAIR_mean)
 		if (not data_valid) or (test_pct > best_test_pct):
-			best_l1 = l1_reg[0]
-			best_l2 = l2_reg[0]
-			best_test_pct = 0
-			best_val_pct = 0
+			best_l1 = l1_reg[i]
+			best_l2 = l2_reg[i]
+			best_l4 = lr[i]
+			best_test_pct = test_pct
+			best_val_pct = val_pct
 			data_valid = True
 
 	# Report results and save
-	print "Achieved test error of %f with l1 = %f and l2 = %f." % (best_test_pct, best_l1, best_l2)
-
-	with open(folder + 'rng_state.dat') as f:
-		pickle(rng_state, f)
+	print "Achieved test error of %f with l1 = %f, l2 = %f, learn rate = %f." % (val_pct, test_pct, l1_reg[i], l2_reg[i], lr[i])
+	print "Best so far: %f with l1 = %f, l2 = %f, learn rate = %f." % (best_test_pct, best_l1, best_l2, best_lr)
 
 	return 0
 
