@@ -159,7 +159,7 @@ def load_data(folder, patient_list, dim, num_pixels,
 	Y = Y>0
 	return X.astype(np.float32), Y.astype(np.int32)
 
-def build_cnn(filter_size = 33, num_neurons = 128, num_classes = 5, 
+def build_cnn(filter_size = 33, num_neurons = 128, num_classes = 2, 
 				input_var = None):
 	network = InputLayer(
 			shape=(None, NUM_MODALITIES*filter_size, filter_size, filter_size),
@@ -299,7 +299,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len, num_epochs 
 
 	return val_acc/val_batches, test_acc/test_batches
 
-def main(num_epochs=50,percent_validation=0.05,percent_test=0.10,edge_len=33,
+def main(num_epochs=25,percent_validation=0.05,percent_test=0.10,edge_len=33,
 			num_regularization_params = 10):
 	rng_state = np.random.get_state()
 
@@ -323,14 +323,14 @@ def main(num_epochs=50,percent_validation=0.05,percent_test=0.10,edge_len=33,
 	validation_set = patient_list[num_train+num_test:]
 
 	# Try some different parameters from the range 1e-6 to 1e-2
-	#l1_reg = 10**(-1*(np.random.rand(num_regularization_params)*4 + 3))
-	#l2_reg = 10**(-1*(np.random.rand(num_regularization_params)*4 + 3))
-	#lr = 10 ** (-1 * (np.random.rand(num_regularization_params) * 3 + 3.5))
-	#lr = lr.astype(np.float32)
-	l1_reg = np.asarray([0])
-	l2_reg = np.asarray([0])
-	lr = np.asarray([0.001])
+	l1_reg = 10**(-1*(np.random.rand(num_regularization_params)*4 + 3))
+	l2_reg = 10**(-1*(np.random.rand(num_regularization_params)*4 + 3))
+	lr = 10 ** (-1 * (np.random.rand(num_regularization_params) * 3 + 3.5))
 	lr = lr.astype(np.float32)
+	#l1_reg = np.asarray([0])
+	#l2_reg = np.asarray([0])
+	#lr = np.asarray([0.001])
+	#lr = lr.astype(np.float32)
 
 	best_l1 = l1_reg[0]
 	best_l2 = l2_reg[0]
@@ -338,8 +338,6 @@ def main(num_epochs=50,percent_validation=0.05,percent_test=0.10,edge_len=33,
 	best_val_pct = 0
 	best_lr = 0
 	data_valid = False
-
-	pdb.set_trace()
 
 	# Train network
 	for i in range(l2_reg.shape[0]):
@@ -359,7 +357,10 @@ def main(num_epochs=50,percent_validation=0.05,percent_test=0.10,edge_len=33,
 			data_valid = True
 
 	# Report results and save
-	print "Achieved test error of %f with l1 = %f, l2 = %f, learn rate = %f." % (val_pct, test_pct, l1_reg[i], l2_reg[i], lr[i])
+
+	pdb.set_trace()
+
+	print "Achieved test error of %f with l1 = %f, l2 = %f, learn rate = %f." % (test_pct, l1_reg[i], l2_reg[i], lr[i])
 	print "Best so far: %f with l1 = %f, l2 = %f, learn rate = %f." % (best_test_pct, best_l1, best_l2, best_lr)
 
 	return 0
