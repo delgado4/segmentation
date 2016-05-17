@@ -61,9 +61,16 @@ def get_mean_volume(folder, modality):
 
 def get_all_mean_volumes(folder):
 	print('Calculating mean images...')
+	print('MR_T1')
 	T1_mean = get_mean_volume(folder, 'MR_T1')
-	T1c_mean = get_mean_volume(folder, 'MR_T1c')
-	T2_mean = get_mean_volume(folder, 'MR_T12')
+	print('MR_T1C')
+	if(platform.system() == 'Darwin'):
+		T1c_mean = get_mean_volume(folder, 'MR_T1c')
+	else:
+		T1c_mean = get_mean_volume(folder, 'MR_T1C')
+	print('MR_T2')
+	T2_mean = get_mean_volume(folder, 'MR_T2')
+	print('MR_FLAIR')
 	FLAIR_mean = get_mean_volume(folder, 'MR_FLAIR')
 	return T1_mean, T1c_mean, T2_mean, FLAIR_mean
 
@@ -159,7 +166,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 				T1_mean, T1c_mean, T2_mean, FLAIR_mean, num_epochs = 500, 
 				l1_reg = 0, l2_reg = 0):
 	'''
-	Note: The following setup code is from the mnist.py code from lasagne examples.
+	Note: The following setup code is adapted from the mnist.py code from lasagne examples.
 	The testing structure was changed to match my data setup
 	'''
 	
@@ -197,6 +204,9 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	# the updates dictionary) and returning the corresponding training loss:
 	train_fn = theano.function([input_var, target_var], loss, updates=updates)
 
+	# Add a function that computes training accuracy
+	train_acc_fn = theano.function([input_var, target_var], test_acc)
+
 	# Compile a second function computing the validation loss and accuracy:
 	val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
 
@@ -210,15 +220,23 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 
 	print("Starting training...")
 	for epoch in range(num_epochs):
+		# Draw randomly from training and validation sets
+		train_index = map(int,np.floor(np.random.rand(patients_per_batch)*np.asarray(train_set).shape[0]))
+		train_batch = [train_set[i] for i in train_index]
+
+		val_index = map(int,np.floor(np.random.rand(1)*np.asarray(train_set).shape[0]))
+		val_batch = [train_set[i] for i in train_index]
+
 		print("Starting epoch " + str(epoch))
 		train_err = 0
 		train_batches = 0
 		start_time = time.time()
 		# "Full pass" over patients
-		for patient in train_set:
+		for patient in train_batch:
 			for i in range(iterations_per_patient):
-				inputs, targets = load_data(folder, np.asarray([patient]), edge_len, num_slices, T1_mean, T1c_mean, T2_mean, FLAIR_mean)
-				pdb.set_trace()
+				inputs, targets = load_data(folder, np.asarray([patient]), edge_len, num_slices, 
+											T1_mean, T1c_mean, T2_mean, FLAIR_mean)
+				#pdb.set_trace()
 				assert len(inputs) == len(targets)
 				print("Made it past data loading")
 				train_err += train_fn(inputs, targets)
@@ -228,9 +246,11 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
         val_err = 0
         val_acc = 0
         val_batches = 0
-        for patient in validation_set:
+        print 'Validating...'
+        for patient in val_batch:
         	for i in range(iterations_per_patient):
-	            inputs, targets = load_data(folder, np.asarray([patient]), edge_len, num_slices, T1_mean, T1c_mean, T2_mean, FLAIR_mean)
+	            inputs, targets = load_data(folder, np.asarray([patient]), edge_len, num_slices, 
+	            							T1_mean, T1c_mean, T2_mean, FLAIR_mean)
 	            err, acc = val_fn(inputs, targets)
 	            val_err += err
 	            val_acc += acc
@@ -240,6 +260,8 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
         print("Epoch {} of {} took {:.3f}s".format(
             epoch + 1, num_epochs, time.time() - start_time))
         print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
+        print("  training accuracy:\t\t{:.2f} %".format(
+            		train_acc / val_batches * 100))
         print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
         print("  validation accuracy:\t\t{:.2f} %".format(
             val_acc / val_batches * 100))
@@ -248,9 +270,11 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	test_err = 0
 	test_acc = 0
 	test_batches = 0
+	print 'Testing...'
 	for patient in test_set:
 		for i in range(iterations_per_patient):
-			inputs, targets = load_data(folder, np.asarray([patient]), edge_len, num_slices, T1_mean, T1c_mean, T2_mean, FLAIR_mean)
+			inputs, targets = load_data(folder, np.asarray([patient]), edge_len, num_slices, 
+										T1_mean, T1c_mean, T2_mean, FLAIR_mean)
 			err, acc = val_fn(inputs, targets)
 			test_err += err
 			test_acc += acc
@@ -263,19 +287,17 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	return val_acc/val_batches, test_acc/test_batches
 
 
-def main(num_epochs=10,percent_validation=0.05,percent_test=0.10,edge_len=33,
-			num_regularization_params = 20):
+def main(num_epochs=25,percent_validation=0.05,percent_test=0.10,edge_len=33,
+			num_regularization_params = 10):
 	rng_state = np.random.get_state()
+
 	if(platform.system() == 'Darwin'):
-                folder = '/Users/dominicdelgado/Documents/Radiogenomics/bratsHGG/jpeg/'
-        else:   
-                folder = '/home/ubuntu/data/jpeg/'
-	
-	#T1_mean, T1c_mean, T2_mean, FLAIR_mean = get_all_mean_volumes(folder)
-	T1_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
-	T1c_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
-	T2_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
-	FLAIR_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
+		folder = '/Users/dominicdelgado/Documents/Radiogenomics/bratsHGG/jpeg/'
+	else:
+		folder = '/home/ubuntu/data/jpeg/'
+
+	# Calculate mean images
+	T1_mean, T1c_mean, T2_mean, FLAIR_mean = get_all_mean_volumes(folder)
 
 	# Generate test, training, and validation sets
 	patient_list = range(NUM_PATIENTS)
@@ -289,35 +311,46 @@ def main(num_epochs=10,percent_validation=0.05,percent_test=0.10,edge_len=33,
 	validation_set = patient_list[num_train+num_test:]
 
 	# Try some different parameters from the range 1e-6 to 1e-2
-	l1_reg = 10**(np.random.rand(num_regularization_params)*4 - 4)
-	l2_reg = 10**(np.random.rand(num_regularization_params)*4 - 4)
+	# l1_reg = 10**(-1*(np.random.rand(num_regularization_params)*4 + 3))
+	# l2_reg = 10**(-1*(np.random.rand(num_regularization_params)*4 + 3))
+	# lr = 10 ** (-1 * (np.random.rand(num_regularization_params) * 3 + 3.5))
+	# lr = lr.astype(np.float32)
+	l1_reg = np.asarray([0])
+	l2_reg = np.asarray([0])
+	lr = np.asarray([0.001])
+	lr = lr.astype(np.float32)
+	num_epochs = 1
 
 	best_l1 = l1_reg[0]
 	best_l2 = l2_reg[0]
 	best_test_pct = 0
 	best_val_pct = 0
+	best_lr = 0
 	data_valid = False
 
 	# Train network
 	for i in range(l2_reg.shape[0]):
 		val_pct, test_pct = train_net(folder = folder, train_set=train_set, 
 					validation_set=validation_set, test_set=test_set, 
-					num_epochs = num_epochs, l1_reg = l1_reg, l2_reg = l2_reg,
+					num_epochs = num_epochs, l1_reg = l1_reg[i], 
+					l2_reg = l2_reg[i], learn_rate = lr[i],
 					edge_len = edge_len,
 					T1_mean=T1_mean, T1c_mean=T1c_mean, T2_mean=T2_mean, 
 					FLAIR_mean=FLAIR_mean)
 		if (not data_valid) or (test_pct > best_test_pct):
-			best_l1 = l1_reg[0]
-			best_l2 = l2_reg[0]
-			best_test_pct = 0
-			best_val_pct = 0
+			best_l1 = l1_reg[i]
+			best_l2 = l2_reg[i]
+			best_l4 = lr[i]
+			best_test_pct = test_pct
+			best_val_pct = val_pct
 			data_valid = True
 
 	# Report results and save
-	print "Achieved test error of %f with l1 = %f and l2 = %f." % (best_test_pct, best_l1, best_l2)
 
-	with open(folder + 'rng_state.dat') as f:
-		pickle(rng_state, f)
+	pdb.set_trace()
+
+	print "Achieved test error of %f with l1 = %f, l2 = %f, learn rate = %f." % (test_pct, l1_reg[i], l2_reg[i], lr[i])
+	print "Best so far: %f with l1 = %f, l2 = %f, learn rate = %f." % (best_test_pct, best_l1, best_l2, best_lr)
 
 	return 0
 
