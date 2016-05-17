@@ -17,6 +17,7 @@ import time
 import theano
 import theano.tensor as T
 import pickle
+import platform
 
 # For DEBUG
 import pdb
@@ -31,8 +32,23 @@ UNIMPLEMENTED = None
 Take in k x n x n matrix of softmax predictions and 1-hot k x n x n target matrix
 and compute the categorical cross-entropy sum(targets .* log(prediction))
 '''
-def BinaryImageCrossEntropyLoss(prediction,targets):
-	return -prediction * T.log(targets)
+
+def ImageSoftmax(prediction,num_classes):
+	'''
+	prediction: 4-D tensor with dimensions (batch_size, num_classes, width, height)
+	'''
+	return T.exp(prediction) / T.tile(T.sum(T.exp(prediction), axis=1), [1,num_classes,1,1])
+
+def ImageCrossEntropyLoss(prediction,targets,num_classes):
+	'''
+	prediction: 4-D tensor post-softmax
+	targets: 3-D tensor of ground truth images
+	'''
+	loss_image = -T.eq(targets,0) * T.log(prediction[:,0,:,:])
+	for i in range(1,num_classes):
+		loss_image += -T.eq(targets,i) * T.log(prediction[:,i,:,:])
+	return lasagne.objectives.aggregate(loss_image)
+
 
 def get_mean_volume(folder, modality):
 	mean_volume = np.zeros((NUM_SLICES, PHOTO_WIDTH, PHOTO_WIDTH))
@@ -85,7 +101,7 @@ def load_data(folder, patient_list, dim, num_slices,
 				T1_mean, T1c_mean, T2_mean, FLAIR_mean):
 	# Initialize data tensors with empty tensors
 	X = np.empty((0, dim * NUM_MODALITIES, PHOTO_WIDTH, PHOTO_WIDTH))
-	Y = np.asarray([])
+	Y = np.empty((0,PHOTO_WIDTH,PHOTO_WIDTH))
 	min_slice = (dim-1)/2 + 1
 
 
@@ -126,7 +142,7 @@ def load_data(folder, patient_list, dim, num_slices,
 		Y = np.concatenate((Y,patient_Y),0)
 
 
-def build_net((filter_size = 11, num_channels = NUM_MODALITIES, num_classes = 2, 
+def build_net(filter_size = 5, num_channels = NUM_MODALITIES, num_classes = 2, 
 				input_var = None):
 	network = InputLayer(
 			shape=(None, num_channels, PHOTO_WIDTH, PHOTO_WIDTH),
@@ -135,8 +151,8 @@ def build_net((filter_size = 11, num_channels = NUM_MODALITIES, num_classes = 2,
 	network = NormLayer(network)
 	network = ConvLayer(DropoutLayer(network, p=0.5), num_filters=256, filter_size=3)
 	network = ConvLayer(DropoutLayer(network, p=0.5), num_filters=256, filter_size=3)
-	network = ConvLayer(DropoutLayer(network, p=0.5), num_filters=num_classes, 
-						filter_size=3, nonlinearity=lasagne.nonlinearities.softmax)
+	network = ConvLayer(DropoutLayer(network, p=0.5), num_filters=num_classes,
+						filter_size=3)
 	return network
 
 def train_net(folder, train_set, validation_set, test_set, edge_len, 
@@ -149,15 +165,15 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	
 	# Set up Theano variables for inputs and targets
 	input_var = T.tensor4('inputs')
-	target_var = T.ivector('targets')
+	target_var = T.itensor3('targets')
 
 	# Create neural network
-	network = build_cnn(input_var=input_var)
+	network = build_net(input_var=input_var)
 
 	# Create a loss expression for training, i.e., a scalar objective we want
 	# to minimize (for our multi-class problem, it is the cross-entropy loss):
 	prediction = lasagne.layers.get_output(network)
-	loss = lasagne.objectives.aggregate(BinaryImageCrossEntropyLoss(prediction, target_var)) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
+	loss = ImageCrossEntropyLoss(prediction, target_var) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
 	loss = loss.mean()
 	# We could add some weight decay as well here, see lasagne.regularization.
 
@@ -171,7 +187,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	# here is that we do a deterministic forward pass through the network,
 	# disabling dropout layers.
 	test_prediction = lasagne.layers.get_output(network, deterministic=True)
-	test_loss = lasagne.objectives.aggregate(BinaryImageCrossEntropyLoss(prediction, target_var)) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
+	test_loss = ImageCrossEntropyLoss(prediction, target_var) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
 	test_loss = test_loss.mean()
 	# As a bonus, also create an expression for the classification accuracy:
 	test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
@@ -202,6 +218,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 		for patient in train_set:
 			for i in range(iterations_per_patient):
 				inputs, targets = load_data(folder, np.asarray([patient]), edge_len, num_slices, T1_mean, T1c_mean, T2_mean, FLAIR_mean)
+				pdb.set_trace()
 				assert len(inputs) == len(targets)
 				print("Made it past data loading")
 				train_err += train_fn(inputs, targets)
@@ -254,7 +271,11 @@ def main(num_epochs=10,percent_validation=0.05,percent_test=0.10,edge_len=33,
         else:   
                 folder = '/home/ubuntu/data/jpeg/'
 	
-	T1_mean, T1c_mean, T2_mean, FLAIR_mean = get_all_mean_volumes(folder)
+	#T1_mean, T1c_mean, T2_mean, FLAIR_mean = get_all_mean_volumes(folder)
+	T1_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
+	T1c_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
+	T2_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
+	FLAIR_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
 
 	# Generate test, training, and validation sets
 	patient_list = range(NUM_PATIENTS)
