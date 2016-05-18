@@ -86,7 +86,6 @@ def get_slice_neighborhood(folder, slice, dim, mean_volume):
 	return vol
 
 def load_examples(folder, slices, dim, mean_volume):
-		#pdb.set_trace()
 		num_slices = slices.shape[0]
 		vol = np.zeros((num_slices, dim, PHOTO_WIDTH, PHOTO_WIDTH))
 		im = np.zeros((dim, PHOTO_WIDTH, PHOTO_WIDTH))
@@ -147,7 +146,6 @@ def load_data(folder, patient_list, dim, num_slices,
 		patient_Y = (OT_volume > 0)
 		patient_Y = np.reshape(patient_Y,(num_slices,PHOTO_WIDTH,PHOTO_WIDTH))
 
-		#pdb.set_trace()
 		# Add to examples
 		X = np.concatenate((X,patient_X),0)
 		Y = np.concatenate((Y,patient_Y),0)
@@ -185,8 +183,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	# Create a loss expression for training, i.e., a scalar objective we want
 	# to minimize (for our multi-class problem, it is the cross-entropy loss):
 	prediction = lasagne.layers.get_output(network)
-	loss = ImageCrossEntropyLoss(ImageSoftmax(prediction,num_classes), target_var, num_classes)
-	 + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
+	loss = ImageCrossEntropyLoss(ImageSoftmax(prediction,num_classes), target_var, num_classes) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
 	loss = loss.mean()
 	# We could add some weight decay as well here, see lasagne.regularization.
 
@@ -200,9 +197,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	# here is that we do a deterministic forward pass through the network,
 	# disabling dropout layers.
 	test_prediction = lasagne.layers.get_output(network, deterministic=True)
-	test_loss = ImageCrossEntropyLoss(ImageSoftmax(prediction,num_classes), 
-										target_var, num_classes)
-	 + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
+	test_loss = ImageCrossEntropyLoss(ImageSoftmax(prediction,num_classes), target_var, num_classes) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
 	test_loss = test_loss.mean()
 	# As a bonus, also create an expression for the classification accuracy:
 	test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
@@ -244,10 +239,8 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 			for i in range(iterations_per_patient):
 				inputs, targets = load_data(folder, np.asarray([patient]), edge_len, num_slices, 
 											T1_mean, T1c_mean, T2_mean, FLAIR_mean)
-				#pdb.set_trace()
 				assert len(inputs) == len(targets)
 				print("Made it past data loading")
-				pdb.set_trace()
 				train_err += train_fn(inputs, targets)
 				train_batches += 1
 
@@ -293,7 +286,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	print("  test accuracy:\t\t{:.2f} %".format(
 		test_acc / test_batches * 100))
 
-	return val_acc/val_batches, test_acc/test_batches
+	return val_acc/val_batches, test_acc/test_batches, lasagne.layers.get_all_param_values(network)
 
 
 def main(num_epochs=25,percent_validation=0.05,percent_test=0.10,edge_len=33,
@@ -337,10 +330,11 @@ def main(num_epochs=25,percent_validation=0.05,percent_test=0.10,edge_len=33,
 	best_val_pct = 0
 	best_lr = 0
 	data_valid = False
+	best_params = None
 
 	# Train network
 	for i in range(l2_reg.shape[0]):
-		val_pct, test_pct = train_net(folder = folder, train_set=train_set, 
+		val_pct, test_pct, params = train_net(folder = folder, train_set=train_set, 
 					validation_set=validation_set, test_set=test_set, 
 					num_epochs = num_epochs, l1_reg = l1_reg[i], 
 					l2_reg = l2_reg[i], learn_rate = lr[i],
@@ -353,15 +347,15 @@ def main(num_epochs=25,percent_validation=0.05,percent_test=0.10,edge_len=33,
 			best_l4 = lr[i]
 			best_test_pct = test_pct
 			best_val_pct = val_pct
+			best_params = params
 			data_valid = True
 
 	# Report results and save
 
-	pdb.set_trace()
+		print "Achieved test error of %f with l1 = %f, l2 = %f, learn rate = %f." % (test_pct, l1_reg[i], l2_reg[i], lr[i])
+		print "Best so far: %f with l1 = %f, l2 = %f, learn rate = %f." % (best_test_pct, best_l1, best_l2, best_lr)
 
-	print "Achieved test error of %f with l1 = %f, l2 = %f, learn rate = %f." % (test_pct, l1_reg[i], l2_reg[i], lr[i])
-	print "Best so far: %f with l1 = %f, l2 = %f, learn rate = %f." % (best_test_pct, best_l1, best_l2, best_lr)
-
+	np.savez('fcn_params.npz', *params)
 	return 0
 
 if __name__ == '__main__':
