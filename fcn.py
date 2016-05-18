@@ -114,7 +114,7 @@ def load_data(folder, patient_list, dim, num_slices,
 
 	for patient_num	in patient_list:
 		# Select slices uniformly at random from patient volume
-		slices = np.floor(np.random.rand(num_slices)*(NUM_SLICES-dim) + min_slice)
+		slices = np.floor(np.random.rand(num_slices)*(NUM_SLICES-dim) + min_slice).astype(np.int32)
 		
 		# Load T1c images, X.shape =  (num_slices,dim,PHOTO_WIDTH,PHOTO_WIDTH)
 		if(platform.system() == 'Darwin'):
@@ -164,7 +164,7 @@ def build_net(filter_size = 5, num_channels = NUM_MODALITIES, num_classes = 2,
 
 def train_net(folder, train_set, validation_set, test_set, edge_len, 
 				T1_mean, T1c_mean, T2_mean, FLAIR_mean, num_epochs = 500, 
-				l1_reg = 0, l2_reg = 0):
+				l1_reg = 0, l2_reg = 0, learn_rate = 0.001, num_classes = 2):
 	'''
 	Note: The following setup code is adapted from the mnist.py code from lasagne examples.
 	The testing structure was changed to match my data setup
@@ -180,7 +180,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	# Create a loss expression for training, i.e., a scalar objective we want
 	# to minimize (for our multi-class problem, it is the cross-entropy loss):
 	prediction = lasagne.layers.get_output(network)
-	loss = ImageCrossEntropyLoss(prediction, target_var) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
+	loss = ImageCrossEntropyLoss(prediction, target_var,num_classes) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
 	loss = loss.mean()
 	# We could add some weight decay as well here, see lasagne.regularization.
 
@@ -188,13 +188,13 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	# parameters at each training step. Here, we'll use Stochastic Gradient
 	# Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
 	params = lasagne.layers.get_all_params(network, trainable=True)
-	updates = lasagne.updates.adam(loss, params, learning_rate=0.001)
+	updates = lasagne.updates.adam(loss, params, learning_rate=learn_rate)
 
 	# Create a loss expression for validation/testing. The crucial difference
 	# here is that we do a deterministic forward pass through the network,
 	# disabling dropout layers.
 	test_prediction = lasagne.layers.get_output(network, deterministic=True)
-	test_loss = ImageCrossEntropyLoss(prediction, target_var) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
+	test_loss = ImageCrossEntropyLoss(prediction, target_var,num_classes) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
 	test_loss = test_loss.mean()
 	# As a bonus, also create an expression for the classification accuracy:
 	test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
@@ -294,7 +294,8 @@ def main(num_epochs=25,percent_validation=0.05,percent_test=0.10,edge_len=33,
 	if(platform.system() == 'Darwin'):
 		folder = '/Users/dominicdelgado/Documents/Radiogenomics/bratsHGG/jpeg/'
 	else:
-		folder = '/home/ubuntu/data/jpeg/'
+		folder = '/home/ubuntu/Neural_CNN/jpeg/'
+		#folder = '/home/ubuntu/data/jpeg/'
 
 	# Calculate mean images
 	T1_mean, T1c_mean, T2_mean, FLAIR_mean = get_all_mean_volumes(folder)
