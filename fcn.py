@@ -83,8 +83,10 @@ def get_slice_neighborhood(folder, slice, dim, mean_volume):
 			im = scipy.misc.imread(folder + str(sl) + '.jpeg')
 			vol[index,:,:] = im - mean_volume[sl,:,:]
 			index += 1
+	return vol
 
 def load_examples(folder, slices, dim, mean_volume):
+		#pdb.set_trace()
 		num_slices = slices.shape[0]
 		vol = np.zeros((num_slices, dim, PHOTO_WIDTH, PHOTO_WIDTH))
 		im = np.zeros((dim, PHOTO_WIDTH, PHOTO_WIDTH))
@@ -142,11 +144,14 @@ def load_data(folder, patient_list, dim, num_slices,
 		# Load OT labels, Y.shape =  (num_slices,1,PHOTO_WIDTH,PHOTO_WIDTH)
 		OT = folder + 'pat' + str(patient_num) + '/OT/'
 		OT_volume = load_examples(OT, slices, 1, np.zeros((NUM_SLICES,PHOTO_WIDTH, PHOTO_WIDTH)))
-		patient_Y = (OT_volume > 0).astype(int)
+		patient_Y = (OT_volume > 0)
+		patient_Y = np.reshape(patient_Y,(num_slices,PHOTO_WIDTH,PHOTO_WIDTH))
 
+		#pdb.set_trace()
 		# Add to examples
 		X = np.concatenate((X,patient_X),0)
 		Y = np.concatenate((Y,patient_Y),0)
+	return X.astype(np.float32),Y.astype(np.int32)
 
 
 def build_net(filter_size = 5, num_channels = NUM_MODALITIES, num_classes = 2, 
@@ -154,12 +159,12 @@ def build_net(filter_size = 5, num_channels = NUM_MODALITIES, num_classes = 2,
 	network = InputLayer(
 			shape=(None, num_channels, PHOTO_WIDTH, PHOTO_WIDTH),
 			input_var=input_var)
-	network = ConvLayer(network, num_filters=72, filter_size=filter_size)
+	network = ConvLayer(network, num_filters=72, filter_size=filter_size, pad='same')
 	network = NormLayer(network)
-	network = ConvLayer(DropoutLayer(network, p=0.5), num_filters=256, filter_size=3)
-	network = ConvLayer(DropoutLayer(network, p=0.5), num_filters=256, filter_size=3)
+	network = ConvLayer(DropoutLayer(network, p=0.5), num_filters=256, filter_size=3, pad='same')
+	network = ConvLayer(DropoutLayer(network, p=0.5), num_filters=256, filter_size=3, pad='same')
 	network = ConvLayer(DropoutLayer(network, p=0.5), num_filters=num_classes,
-						filter_size=3)
+						filter_size=3,pad='same')
 	return network
 
 def train_net(folder, train_set, validation_set, test_set, edge_len, 
@@ -239,6 +244,7 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 				#pdb.set_trace()
 				assert len(inputs) == len(targets)
 				print("Made it past data loading")
+				pdb.set_trace()
 				train_err += train_fn(inputs, targets)
 				train_batches += 1
 
