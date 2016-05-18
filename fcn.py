@@ -180,12 +180,13 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	target_var = T.itensor3('targets')
 
 	# Create neural network
-	network = build_net(input_var=input_var)
+	network = build_net(input_var=input_var, num_channels=edge_len*NUM_MODALITIES, num_classes=num_classes)
 
 	# Create a loss expression for training, i.e., a scalar objective we want
 	# to minimize (for our multi-class problem, it is the cross-entropy loss):
 	prediction = lasagne.layers.get_output(network)
-	loss = ImageCrossEntropyLoss(prediction, target_var,num_classes) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
+	loss = ImageCrossEntropyLoss(ImageSoftmax(prediction,num_classes), target_var, num_classes)
+	 + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
 	loss = loss.mean()
 	# We could add some weight decay as well here, see lasagne.regularization.
 
@@ -199,7 +200,9 @@ def train_net(folder, train_set, validation_set, test_set, edge_len,
 	# here is that we do a deterministic forward pass through the network,
 	# disabling dropout layers.
 	test_prediction = lasagne.layers.get_output(network, deterministic=True)
-	test_loss = ImageCrossEntropyLoss(prediction, target_var,num_classes) + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
+	test_loss = ImageCrossEntropyLoss(ImageSoftmax(prediction,num_classes), 
+										target_var, num_classes)
+	 + l1_reg*lasagne.regularization.regularize_network_params(network, l1) + l2_reg*lasagne.regularization.regularize_network_params(network, l2)
 	test_loss = test_loss.mean()
 	# As a bonus, also create an expression for the classification accuracy:
 	test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
