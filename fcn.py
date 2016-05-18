@@ -121,27 +121,27 @@ def load_data(folder, patient_list, dim, num_slices,
 			T1c = folder + 'pat' + str(patient_num) + '/MR_T1c/'
 		else:
 			T1c = folder + 'pat' + str(patient_num) + '/MR_T1C/'
-		T1c_volume = load_examples(folder, slices, dim, T1c_mean)
+		T1c_volume = load_examples(T1c, slices, dim, T1c_mean)
 		patient_X = T1c_volume
 
 		# Load T1 images, X.shape =  (num_slices,2dim,PHOTO_WIDTH,PHOTO_WIDTH)
 		T1 = folder + 'pat' + str(patient_num) + '/MR_T1/'
-		T1_volume = load_examples(folder, slices, dim, T1_mean)
+		T1_volume = load_examples(T1, slices, dim, T1_mean)
 		patient_X = np.concatenate((patient_X, T1_volume),1)
 
 		# Load T2 images, X.shape =  (num_slices,3dim,PHOTO_WIDTH,PHOTO_WIDTH)
 		T2 = folder + 'pat' + str(patient_num) + '/MR_T2/'
-		T2_volume = load_examples(folder, slices, dim, T2_mean)
+		T2_volume = load_examples(T2, slices, dim, T2_mean)
 		patient_X = np.concatenate((patient_X, T2_volume),1)
 
 		# Load FLAIR images, X.shape =  (num_slices,4dim,PHOTO_WIDTH,PHOTO_WIDTH)
 		FLAIR = folder + 'pat' + str(patient_num) + '/MR_FLAIR/'
-		FLAIR_volume = load_examples(folder, slices, dim, FLAIR_mean)
+		FLAIR_volume = load_examples(FLAIR, slices, dim, FLAIR_mean)
 		patient_X = np.concatenate((patient_X, FLAIR_volume),1)
 
 		# Load OT labels, Y.shape =  (num_slices,1,PHOTO_WIDTH,PHOTO_WIDTH)
 		OT = folder + 'pat' + str(patient_num) + '/OT/'
-		OT_volume = load_examples(folder, slices, 1, np.zeros((NUM_SLICES,PHOTO_WIDTH, PHOTO_WIDTH)))
+		OT_volume = load_examples(OT, slices, 1, np.zeros((NUM_SLICES,PHOTO_WIDTH, PHOTO_WIDTH)))
 		patient_Y = (OT_volume > 0).astype(int)
 
 		# Add to examples
