@@ -81,10 +81,11 @@ def load_network(filename, network):
 
 def classify(softmax_pixels, targets, weights):
 	predictions = np.argmax(softmax_pixels,axis=2)
-	TP = sum((predictions==1 && targets==1).astype(int32))
-	FP = sum((predictions==1 && targets==0).astype(int32))
-	TN = sum((predictions==0 && targets==0).astype(int32))
-	FN = sum((predictions==0 && targets==1).astype(int32))
+	TP = np.sum((predictions==np.ones(targets.shape)).astype(np.int32) * (targets==np.ones(targets.shape)).astype(np.int32))
+	FP = np.sum((predictions==np.ones(targets.shape)).astype(np.int32) * (targets==np.zeros(targets.shape)).astype(np.int32))
+	TN = np.sum((predictions==np.zeros(targets.shape)).astype(np.int32) * (targets==np.zeros(targets.shape)).astype(np.int32))
+	FN = np.sum((predictions==np.zeros(targets.shape)).astype(np.int32) * (targets==np.ones(targets.shape)).astype(np.int32))
+	return TP,FP,TN,FN
 
 def main(patient_num, num_classes = 2, slice_num = None):
 	if(platform.system() == 'Darwin'):
@@ -109,10 +110,10 @@ def main(patient_num, num_classes = 2, slice_num = None):
 
 	# Calculate mean images
 	T1_mean, T1c_mean, T2_mean, FLAIR_mean = get_all_mean_volumes(folder)
-	# T1_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
-	# T1c_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
-	# T2_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
-	# FLAIR_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
+	#T1_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
+	#T1c_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
+	#T2_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
+	#FLAIR_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
 
 	# Load mean-centered data
 	T1, T1c, T2, FLAIR, OT = get_patient_volumes(folder, patient_num, T1_mean, T1c_mean, T2_mean, FLAIR_mean)
@@ -135,9 +136,10 @@ def main(patient_num, num_classes = 2, slice_num = None):
 	slices += pad
 
 	# Batch classification process
+	print('Running examples through convnet...\n')
 	softmax_pixels = np.zeros((PHOTO_WIDTH,PHOTO_WIDTH,num_classes))
 	for sl in slices:
-		for start in range(0,NUM_SLICES,step):
+		for start in range(0,PHOTO_WIDTH,step):
 			# Pair each row with all columns
 			rows = np.empty(0)
 			for i in range(start, start+step):
@@ -146,46 +148,51 @@ def main(patient_num, num_classes = 2, slice_num = None):
 			# Account for zero-padding
 			rows += pad
 
-			pdb.set_trace()
+			#pdb.set_trace()
 
-			T1c_cubes = get_cubes(T1c, 33, num_rows*num_cols, np.asarray([sl]), rows, cols)
+			T1c_cubes = get_cubes(T1c, 33, num_rows*num_cols, sl*np.ones(num_rows*num_cols), rows, cols)
 			X = T1c_cubes
 
-			T1_cubes = get_cubes(T1, 33, num_rows*num_cols, np.asarray([sl]), rows, cols)
+			T1_cubes = get_cubes(T1, 33, num_rows*num_cols, sl*np.ones(num_rows*num_cols), rows, cols)
 			X = np.concatenate((X,T1_cubes),1)
 
-			T2_cubes = get_cubes(T2, 33, num_rows*num_cols, np.asarray([sl]), rows, cols)
+			T2_cubes = get_cubes(T2, 33, num_rows*num_cols, sl*np.ones(num_rows*num_cols), rows, cols)
 			X = np.concatenate((X,T2_cubes),1)
 
-			FLAIR_cubes = get_cubes(FLAIR, 33, num_rows*num_cols, np.asarray([sl]), rows, cols)
+			FLAIR_cubes = get_cubes(FLAIR, 33, num_rows*num_cols, sl*np.ones(num_rows*num_cols), rows, cols)
 			X = np.concatenate((X,FLAIR_cubes),1)
 
 			X = X.astype(np.float32)
 			results = get_softmax_vals(X)
 			
 			for i in range(len(rows)):
-				softmax_pixels[rows[i],cols[i],:] = results[i,:]
+				softmax_pixels[rows[i]-pad,cols[i]-pad,:] = results[i,:]
 	
 	# Classify for various weightings
-	lambdas = np.arange(0,1,0.05)
-	TP = np.empty(len(lambdas))
-	FP = np.empty(len(lambdas))
-	TN = np.empty(len(lambdas))
-	FN = np.empty(len(lambdas))
+	lambdas = 10 ** np.arange(-1,2,30)
+	TP = np.zeros(len(lambdas))
+	FP = np.zeros(len(lambdas))
+	TN = np.zeros(len(lambdas))
+	FN = np.zeros(len(lambdas))
 	targets = (OT>0).astype(np.int32)
 
+	print('Classifying...\n')
 	for i in range(len(lambdas)):
 		l = lambdas[i]
-		weights = np.asarry([(1-l), l])
+		weights = np.asarray([(1-l), l])
 		tp, fp, tn, fn = classify(softmax_pixels, targets, weights)
-		TP[i] = tp
-		FP[i] = fp
-		TN[i] = tn
-		FN[i] = fn
+		TP[i] += tp
+		FP[i] += fp
+		TN[i] += tn
+		FN[i] += fn
+
+	print('Done.\n')
+	#pdb.set_trace()
 
 	# Save results
-	data = np.concatenate((np.reshape(lambdas(1,-1)), np.reshape(TP,(1,-1)), np.reshape(FP,(1,-1)), np.reshape(TN,(1,-1)), np.reshape(FN,(1,-1))),axis=0)
-	np.save('cnn_roc.npy',accuracy)
+	data = np.concatenate((np.reshape(lambdas,(1,-1)), np.reshape(TP,(1,-1)), np.reshape(FP,(1,-1)), np.reshape(TN,(1,-1)), np.reshape(FN,(1,-1))),axis=0)
+	np.save('cnn_roc_' + patient_num + '_' + sl + '_.npy',data)
+	np.save('softmax_' + patient_num + '_' + sl + '_.npy',data)
 
 if __name__ == '__main__':
 	kwargs = {}
