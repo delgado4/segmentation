@@ -93,7 +93,7 @@ def main(patient_num, num_classes = 2, slice_num = None):
 	else:
 		#folder = '/home/ubuntu/Neural_CNN/jpeg/'
 		folder = '/home/ubuntu/data/jpeg/'
-	filename = 'cnn_params.npz'
+	filename = 'cnn_params140.npz'
 
 	# Set up Theano variables for inputs and targets
 	input_var = T.tensor4('inputs')
@@ -191,8 +191,8 @@ def main(patient_num, num_classes = 2, slice_num = None):
 
 	# Save results
 	data = np.concatenate((np.reshape(lambdas,(1,-1)), np.reshape(TP,(1,-1)), np.reshape(FP,(1,-1)), np.reshape(TN,(1,-1)), np.reshape(FN,(1,-1))),axis=0)
-	np.save('cnn_roc_' + patient_num + '_' + sl + '_.npy',data)
-	np.save('softmax_' + patient_num + '_' + sl + '_.npy',data)
+	np.save('cnn_roc140_' + str(patient_num) + '_' + str(sl) + '_.npy',data)
+	np.save('softmax140_' + str(patient_num) + '_' + str(sl) + '_.npy',softmax_pixels)
 
 if __name__ == '__main__':
 	kwargs = {}
