@@ -51,6 +51,14 @@ def get_all_mean_volumes(folder):
 	FLAIR_mean = get_mean_volume(folder, 'MR_FLAIR')
 	return T1_mean, T1c_mean, T2_mean, FLAIR_mean
 
+def load_volume(folder):
+	vol = np.zeros((NUM_SLICES, PHOTO_WIDTH, PHOTO_WIDTH))
+	im = np.zeros((PHOTO_WIDTH, PHOTO_WIDTH))
+	for slice in range(0,NUM_SLICES):
+		im = scipy.misc.imread(folder + str(slice) + '.jpeg')
+		vol[slice,:,:] = im	
+	return vol
+
 '''
 Given the data location, edge length 
 of pixel neighborhood, and a set of patients, generates volumes from 
@@ -59,14 +67,6 @@ num_pixels x num_pixels x num_pixels cubes for each modality.
 '''
 def load_data(folder, patient_list, dim, num_pixels,
 				T1_mean, T1c_mean, T2_mean, FLAIR_mean):
-	def load_volume(folder):
-		vol = np.zeros((NUM_SLICES, PHOTO_WIDTH, PHOTO_WIDTH))
-		im = np.zeros((PHOTO_WIDTH, PHOTO_WIDTH))
-		for slice in range(0,NUM_SLICES):
-			im = scipy.misc.imread(folder + str(slice) + '.jpeg')
-			vol[slice,:,:] = im
-		return vol
-
 	# Note that dim must be an odd number
 	def get_cubes(volume, dim, num_pixels, slices, rows, cols):
 		half_len = (dim-1)/2

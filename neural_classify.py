@@ -80,7 +80,11 @@ def load_network(filename, network):
 	return network
 
 def classify(softmax_pixels, targets, weights):
-	predictions = np.argmax(softmax_pixels,axis=2)
+	pdb.set_trace()
+	weighted_pixels = softmax_pixels
+	for i in range(weights.shape[0]):
+		weighted_pixels[:,:,:,i] *= weights[i]
+	predictions = np.argmax(weighted_pixels,axis=3)
 	TP = np.sum((predictions==np.ones(targets.shape)).astype(np.int32) * (targets==np.ones(targets.shape)).astype(np.int32))
 	FP = np.sum((predictions==np.ones(targets.shape)).astype(np.int32) * (targets==np.zeros(targets.shape)).astype(np.int32))
 	TN = np.sum((predictions==np.zeros(targets.shape)).astype(np.int32) * (targets==np.zeros(targets.shape)).astype(np.int32))
@@ -109,11 +113,11 @@ def main(patient_num, num_classes = 2, slice_num = None):
 	get_softmax_vals = init_classifier(network, num_classes, input_var)
 
 	# Calculate mean images
-	T1_mean, T1c_mean, T2_mean, FLAIR_mean = get_all_mean_volumes(folder)
-	#T1_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
-	#T1c_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
-	#T2_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
-	#FLAIR_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
+	#T1_mean, T1c_mean, T2_mean, FLAIR_mean = get_all_mean_volumes(folder)
+	T1_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
+	T1c_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
+	T2_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
+	FLAIR_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
 
 	# Load mean-centered data
 	T1, T1c, T2, FLAIR, OT = get_patient_volumes(folder, patient_num, T1_mean, T1c_mean, T2_mean, FLAIR_mean)
@@ -135,12 +139,29 @@ def main(patient_num, num_classes = 2, slice_num = None):
 	cols += pad
 	slices += pad
 	num_slices = slices.shape[0]
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
 
 	# Batch classification process
 	print('Running examples through convnet...\n')
 	softmax_pixels = np.zeros((num_slices,PHOTO_WIDTH,PHOTO_WIDTH,num_classes))
 	index = 0
+=======
+	
+	# Batch classification process
+	print('Running examples through convnet...\n')
+	softmax_pixels = np.zeros((num_slices,PHOTO_WIDTH,PHOTO_WIDTH,num_classes))
+	counter = 0;
+>>>>>>> Stashed changes
+=======
+	
+	# Batch classification process
+	print('Running examples through convnet...\n')
+	softmax_pixels = np.zeros((num_slices,PHOTO_WIDTH,PHOTO_WIDTH,num_classes))
+	counter = 0;
+>>>>>>> Stashed changes
 	for sl in slices:
+		print('Processing slice ' + str(sl-pad) + '\n')
 		for start in range(0,PHOTO_WIDTH,step):
 			# Pair each row with all columns
 			rows = np.empty(0)
@@ -167,24 +188,42 @@ def main(patient_num, num_classes = 2, slice_num = None):
 			X = X.astype(np.float32)
 			results = get_softmax_vals(X)
 			
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
 			for i in range(len(rows)):
 				softmax_pixels[index,rows[i]-pad,cols[i]-pad,:] = results[i,:]
 		index+=1
 	
 	pdb.set_trace()
 	'''
+=======
+=======
+>>>>>>> Stashed changes
+			pdb.set_trace()
+
+			for i in xrange(num_rows*num_cols):
+				softmax_pixels[counter,rows[i]-pad,cols[i]-pad,:] = results[i,:]
+		counter += 1
+	
+	pdb.set_trace()
+
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
 	# Classify for various weightings
-	lambdas = 10 ** np.arange(-1,2,30)
+	lambdas = 10 ** np.linspace(-1,2,30)
 	TP = np.zeros(len(lambdas))
 	FP = np.zeros(len(lambdas))
 	TN = np.zeros(len(lambdas))
 	FN = np.zeros(len(lambdas))
 	targets = (OT>0).astype(np.int32)
+	targets = targets[slices,:,:]
 
 	print('Classifying...\n')
 	for i in range(len(lambdas)):
 		l = lambdas[i]
-		weights = np.asarray([(1-l), l])
+		weights = np.asarray([1, l])
 		tp, fp, tn, fn = classify(softmax_pixels, targets, weights)
 		TP[i] += tp
 		FP[i] += fp
@@ -195,10 +234,19 @@ def main(patient_num, num_classes = 2, slice_num = None):
 	#pdb.set_trace()
 	'''
 	# Save results
+<<<<<<< Updated upstream
 	#data = np.concatenate((np.reshape(lambdas,(1,-1)), np.reshape(TP,(1,-1)), np.reshape(FP,(1,-1)), np.reshape(TN,(1,-1)), np.reshape(FN,(1,-1))),axis=0)
 	#np.save('cnn_roc140_' + str(patient_num) + '_' + str(sl) + '_.npy',data)
 	#np.save('softmax140' + str(patient_num) + '_' + str(sl) + '_.npy',softmax_pixels)
 	np.save('softmax140_full' + str(patient_num)  + '_.npy',softmax_pixels)
+=======
+	data = np.concatenate((np.reshape(lambdas,(1,-1)), np.reshape(TP,(1,-1)), np.reshape(FP,(1,-1)), np.reshape(TN,(1,-1)), np.reshape(FN,(1,-1))),axis=0)
+	np.save('cnn_roc140_' + str(patient_num) + '_' + str(sl-pad) + '.npy',data)
+	np.save('softmax140_' + str(patient_num) + '_' + str(sl-pad) + '.npy',softmax_pixels)
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
 
 if __name__ == '__main__':
 	kwargs = {}

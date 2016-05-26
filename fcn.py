@@ -355,7 +355,7 @@ def main(num_epochs=25,percent_validation=0.05,percent_test=0.10,edge_len=33,
 		print "Achieved test error of %f with l1 = %f, l2 = %f, learn rate = %f." % (test_pct, l1_reg[i], l2_reg[i], lr[i])
 		print "Best so far: %f with l1 = %f, l2 = %f, learn rate = %f." % (best_test_pct, best_l1, best_l2, best_lr)
 
-	np.savez('fcn_params.npz', *params)
+	np.savez('fcn_params.npz', *best_params)
 	return 0
 
 if __name__ == '__main__':
