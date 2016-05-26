@@ -134,10 +134,12 @@ def main(patient_num, num_classes = 2, slice_num = None):
 	FLAIR = np.pad(FLAIR, pad, 'constant')
 	cols += pad
 	slices += pad
+	num_slices = slices.shape[0]
 
 	# Batch classification process
 	print('Running examples through convnet...\n')
-	softmax_pixels = np.zeros((PHOTO_WIDTH,PHOTO_WIDTH,num_classes))
+	softmax_pixels = np.zeros((num_slices,PHOTO_WIDTH,PHOTO_WIDTH,num_classes))
+	index = 0
 	for sl in slices:
 		for start in range(0,PHOTO_WIDTH,step):
 			# Pair each row with all columns
@@ -166,8 +168,11 @@ def main(patient_num, num_classes = 2, slice_num = None):
 			results = get_softmax_vals(X)
 			
 			for i in range(len(rows)):
-				softmax_pixels[rows[i]-pad,cols[i]-pad,:] = results[i,:]
+				softmax_pixels[index,rows[i]-pad,cols[i]-pad,:] = results[i,:]
+		index+=1
 	
+	pdb.set_trace()
+	'''
 	# Classify for various weightings
 	lambdas = 10 ** np.arange(-1,2,30)
 	TP = np.zeros(len(lambdas))
@@ -188,11 +193,12 @@ def main(patient_num, num_classes = 2, slice_num = None):
 
 	print('Done.\n')
 	#pdb.set_trace()
-
+	'''
 	# Save results
-	data = np.concatenate((np.reshape(lambdas,(1,-1)), np.reshape(TP,(1,-1)), np.reshape(FP,(1,-1)), np.reshape(TN,(1,-1)), np.reshape(FN,(1,-1))),axis=0)
-	np.save('cnn_roc140_' + str(patient_num) + '_' + str(sl) + '_.npy',data)
-	np.save('softmax140_' + str(patient_num) + '_' + str(sl) + '_.npy',softmax_pixels)
+	#data = np.concatenate((np.reshape(lambdas,(1,-1)), np.reshape(TP,(1,-1)), np.reshape(FP,(1,-1)), np.reshape(TN,(1,-1)), np.reshape(FN,(1,-1))),axis=0)
+	#np.save('cnn_roc140_' + str(patient_num) + '_' + str(sl) + '_.npy',data)
+	#np.save('softmax140' + str(patient_num) + '_' + str(sl) + '_.npy',softmax_pixels)
+	np.save('softmax140_full' + str(patient_num)  + '_.npy',softmax_pixels)
 
 if __name__ == '__main__':
 	kwargs = {}
