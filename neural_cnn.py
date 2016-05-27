@@ -184,9 +184,9 @@ def train_net(folder, train_set, validation_set, test_set, edge_len, num_epochs 
 	network = build_cnn(input_var=input_var)
 
 	# Load params from file
-	#with np.load('cnn_params140.npz') as f:
-	#	param_values = [f['arr_%d' % i] for i in range(len(f.files))]
-	#lasagne.layers.set_all_param_values(network, param_values)
+	with np.load('cnn_params_large140.npz') as f:
+		param_values = [f['arr_%d' % i] for i in range(len(f.files))]
+	lasagne.layers.set_all_param_values(network, param_values)
 
 	# Create a loss expression for training, i.e., a scalar objective we want
 	# to minimize (for our multi-class problem, it is the cross-entropy loss):
@@ -228,20 +228,20 @@ def train_net(folder, train_set, validation_set, test_set, edge_len, num_epochs 
 	#int(np.ceil(pixels_per_patient/(pixels_per_batch*patients_per_batch)))
 	val_patients_per_batch = 1
 
+	val_loss_hist = []
+	train_loss_hist = []
+	val_acc_hist = []
+	train_acc_hist = []
+
 	print("Starting training...")
 	for epoch in range(num_epochs):
-		val_loss_hist = []
-		train_loss_hist = []
-		val_acc_hist = []
-		train_acc_hist = []
-
 		train_index = map(int,np.floor(np.random.rand(patients_per_batch)*np.asarray(train_set).shape[0]))
 		train_batch = [train_set[i] for i in train_index]
 
 		val_index = map(int,np.floor(np.random.rand(val_patients_per_batch)*np.asarray(validation_set).shape[0]))
 		val_batch = [validation_set[i] for i in val_index]
 
-		print("Starting epoch " + str(epoch))
+		print("Starting epoch " + str(epoch+1))
 		train_err = 0
 		train_acc = 0
 		train_batches = 0
@@ -288,14 +288,16 @@ def train_net(folder, train_set, validation_set, test_set, edge_len, num_epochs 
 		# Save intermediate results every now and then
 		train_loss_hist.append(train_err/train_batches)
 		val_loss_hist.append(val_err/val_batches)
-		train_acc_hist.append(train_acc/val_batches)
+		train_acc_hist.append(train_acc/train_batches)
 		val_acc_hist.append(val_acc/val_batches)
 
-		if((epoch+1) % 70 == 0):
+		if((epoch+1) % 10 == 0):
 			save_data('train_loss.dat', train_loss_hist)
 			save_data('val_loss.dat', val_loss_hist)
-			save_data('train_acc.dat', train_loss_hist)
+			save_data('train_acc.dat', train_acc_hist)
 			save_data('val_acc.dat', val_acc_hist)
+			
+		if((epoch+1) % 25 == 0):
 			np.savez('cnn_params_large' + str(epoch+1) + '.npz', *lasagne.layers.get_all_param_values(network))
 				
 
@@ -357,7 +359,7 @@ def main(num_epochs=500,percent_validation=0.05,percent_test=0.10,edge_len=33,
 	#lr = lr.astype(np.float32)
 	l1_reg = np.asarray([0.0])
 	l2_reg = np.asarray([0.0])
-	lr = np.asarray([0.001]) #0.001])
+	lr = np.asarray([0.00001]) #0.001])
 	lr = lr.astype(np.float32)
 
 	best_l1 = l1_reg[0]
