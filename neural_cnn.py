@@ -86,8 +86,15 @@ def get_patient_volumes(folder, patient_num, T1_mean, T1c_mean, T2_mean, FLAIR_m
 
 	return T1_volume, T1c_volume, T2_volume, FLAIR_volume, OT_volume
 
-def get_sample_indices(volume, dim, num_pixels):
-	# Calculate locations of nonzero pixels in T1c
+def get_sample_indices(nonzero_pixels, num_pixels):
+	# Sample pixels uniformly from nonzero pixels
+	indices = np.random.choice(range(nonzero_pixels.shape[0]), num_pixels)
+	slices = nonzero_pixels[indices,0]
+	rows = nonzero_pixels[indices,1]
+	cols = nonzero_pixels[indices,2]
+	return slices, rows, cols
+
+def get_nonzero_pixels(volume, dim):
 	half_len = (dim-1)/2
 	nonzero_pixels = np.asarray([(sl,row,col) 
 	for sl in range(NUM_SLICES) 
@@ -97,22 +104,16 @@ def get_sample_indices(volume, dim, num_pixels):
 	if sl > half_len if sl < NUM_SLICES-half_len-1
 	if row > half_len if row < PHOTO_WIDTH-half_len-1
 	if col > half_len if col < PHOTO_WIDTH-half_len-1])
+	return nonzero_pixels
 
-	# Sample pixels uniformly from nonzero pixels
-	indices = np.random.choice(range(nonzero_pixels.shape[0]), num_pixels)
-	slices = nonzero_pixels[indices,0]
-	rows = nonzero_pixels[indices,1]
-	cols = nonzero_pixels[indices,2]
-	return slices, rows, cols
-
-def get_balanced_batch(dim, num_pixels,T1, T1c, T2, FLAIR, OT):
+def get_balanced_batch(T1c_nonzero, OT_nonzero, dim, num_pixels,T1, T1c, T2, FLAIR, OT):
 	assert(num_pixels%2 == 0)
 
 	# Get 50% indices from nonzero T1c (mostly non-cancer)
-	slices_T1c, rows_T1c, cols_T1c = get_sample_indices(T1c, dim, num_pixels/2)
+	slices_T1c, rows_T1c, cols_T1c = get_sample_indices(T1c_nonzero, num_pixels/2)
 
 	# Get 50% indices from nonzero OT (cancer)
-	slices_OT, rows_OT, cols_OT = get_sample_indices(OT, dim, num_pixels/2)
+	slices_OT, rows_OT, cols_OT = get_sample_indices(OT_nonzero, num_pixels/2)
 
 	slices = np.concatenate((slices_T1c, slices_OT))
 	rows = np.concatenate((rows_T1c, rows_OT))
@@ -184,9 +185,9 @@ def train_net(folder, train_set, validation_set, test_set, edge_len, num_epochs 
 	network = build_cnn(input_var=input_var)
 
 	# Load params from file
-	with np.load('cnn_params_large140.npz') as f:
-		param_values = [f['arr_%d' % i] for i in range(len(f.files))]
-	lasagne.layers.set_all_param_values(network, param_values)
+	# with np.load('cnn_params_large140.npz') as f:
+	# 	param_values = [f['arr_%d' % i] for i in range(len(f.files))]
+	# lasagne.layers.set_all_param_values(network, param_values)
 
 	# Create a loss expression for training, i.e., a scalar objective we want
 	# to minimize (for our multi-class problem, it is the cross-entropy loss):
@@ -250,40 +251,42 @@ def train_net(folder, train_set, validation_set, test_set, edge_len, num_epochs 
 		for patient in train_batch:
 			# Load mean-centered data
 			T1, T1c, T2, FLAIR, OT = get_patient_volumes(folder, patient, T1_mean, T1c_mean, T2_mean, FLAIR_mean)
-
+			T1c_nonzero = get_nonzero_pixels(T1c, edge_len)
+			OT_nonzero = get_nonzero_pixels(OT, edge_len)
+			
 			print 'Training on patient %d...' % patient
 			for i in range(iterations_per_patient):
-
-				inputs, targets = get_balanced_batch(edge_len, pixels_per_batch,T1, T1c, T2, FLAIR, OT)
-				#pdb.set_trace()
+				inputs, targets = get_balanced_batch(T1c_nonzero, OT_nonzero, edge_len, pixels_per_batch,T1, T1c, T2, FLAIR, OT)
 				assert len(inputs) == len(targets)
 				train_err += train_fn(inputs, targets)
 				train_acc += train_acc_fn(inputs, targets)
 				train_batches += 1
 
-        	# And a "full pass" over the validation data:
-        	val_err = 0
-        	val_acc = 0
-        	val_batches = 0
-	    	for patient in val_batch:
+		# And a "full pass" over the validation data:
+		val_err = 0
+		val_acc = 0
+		val_batches = 0
+		for patient in val_batch:
 			print 'Validating on patient %d...' % patient
-    			T1, T1c, T2, FLAIR, OT = get_patient_volumes(folder, patient, T1_mean, T1c_mean, T2_mean, FLAIR_mean)
-    			for i in range(iterations_per_patient):
-            			inputs, targets = get_balanced_batch(edge_len, pixels_per_batch,T1, T1c, T2, FLAIR, OT)
-            			err, acc = val_fn(inputs, targets)
-            			val_err += err
-            			val_acc += acc
-            			val_batches += 1
+			T1, T1c, T2, FLAIR, OT = get_patient_volumes(folder, patient, T1_mean, T1c_mean, T2_mean, FLAIR_mean)
+			T1c_nonzero = get_nonzero_pixels(T1c, edge_len)
+			OT_nonzero = get_nonzero_pixels(OT, edge_len)
+			for i in range(iterations_per_patient):
+				inputs, targets = get_balanced_batch(T1c_nonzero, OT_nonzero, edge_len, pixels_per_batch,T1, T1c, T2, FLAIR, OT)
+				err, acc = val_fn(inputs, targets)
+				val_err += err
+				val_acc += acc
+				val_batches += 1
 
-    		# Then we print the results for this epoch:
-    		print("Epoch {} of {} took {:.3f}s".format(
-        		epoch + 1, num_epochs, time.time() - start_time))
-    		print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
-    		print("  training accuracy:\t\t{:.2f} %".format(
-        		train_acc / val_batches * 100))
-    		print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
-    		print("  validation accuracy:\t\t{:.2f} %".format(
-        		val_acc / val_batches * 100))
+		# Then we print the results for this epoch:
+		print("Epoch {} of {} took {:.3f}s".format(
+			epoch + 1, num_epochs, time.time() - start_time))
+		print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
+		print("  training accuracy:\t\t{:.2f} %".format(
+			train_acc / val_batches * 100))
+		print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
+		print("  validation accuracy:\t\t{:.2f} %".format(
+			val_acc / val_batches * 100))
 	
 		# Save intermediate results every now and then
 		train_loss_hist.append(train_err/train_batches)
@@ -299,17 +302,18 @@ def train_net(folder, train_set, validation_set, test_set, edge_len, num_epochs 
 			
 		if((epoch+1) % 25 == 0):
 			np.savez('cnn_params_large' + str(epoch+1) + '.npz', *lasagne.layers.get_all_param_values(network))
-				
 
-    	# After training, we compute and print the test error:
+    # After training, we compute and print the test error:
 	test_err = 0
 	test_acc = 0
 	test_batches = 0
 	print 'Testing...'
 	for patient in test_set:
 		T1, T1c, T2, FLAIR, OT = get_patient_volumes(folder, patient, T1_mean, T1c_mean, T2_mean, FLAIR_mean)
+		T1c_nonzero = get_nonzero_pixels(T1c, edge_len)
+		OT_nonzero = get_nonzero_pixels(OT, edge_len)
 		for i in range(iterations_per_patient):
-			inputs, targets = get_balanced_batch(edge_len, pixels_per_batch,T1, T1c, T2, FLAIR, OT)
+			inputs, targets = get_balanced_batch(T1c_nonzero, OT_nonzero, edge_len, pixels_per_batch,T1, T1c, T2, FLAIR, OT)
 			err, acc = val_fn(inputs, targets)
 			test_err += err
 			test_acc += acc
@@ -332,10 +336,10 @@ def main(num_epochs=500,percent_validation=0.05,percent_test=0.10,edge_len=33,
 
 	# Calculate mean images
 	T1_mean, T1c_mean, T2_mean, FLAIR_mean = get_all_mean_volumes(folder)
-	#T1_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
-	#T1c_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
-	#T2_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
-	#FLAIR_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
+	# T1_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
+	# T1c_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
+	# T2_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
+	# FLAIR_mean = np.zeros((NUM_SLICES,PHOTO_WIDTH,PHOTO_WIDTH))
 
 	# Generate test, training, and validation sets
 	patient_list = range(NUM_PATIENTS)
