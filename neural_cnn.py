@@ -158,8 +158,8 @@ def build_cnn(filter_size = 33, num_neurons = 1024, num_classes = 2,
 			input_var=input_var)
 	network = ConvLayer(network, num_filters=72, filter_size=filter_size)
 	network = NormLayer(network)
-	network = batch_norm(DenseLayer(network, num_units=num_neurons))
-	network = batch_norm(DenseLayer(DropoutLayer(network, p=0.5), num_units=num_neurons))
+	network = (DenseLayer(network, num_units=num_neurons))
+	network = (DenseLayer(DropoutLayer(network, p=0.5), num_units=num_neurons))
 	network = DenseLayer(DropoutLayer(network, p=0.5), num_units=num_classes,
 							nonlinearity=lasagne.nonlinearities.softmax)
 	return network
@@ -221,8 +221,8 @@ def train_net(folder, train_set, validation_set, test_set, edge_len, num_epochs 
 	# Compile a second function computing the validation loss and accuracy:
 	val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
 
-	patients_per_batch = 1
-	pixels_per_batch = 100
+	patients_per_batch = 2
+	pixels_per_batch = 500
 	iterations_per_patient = 10
 	pixels_per_patient = pixels_per_batch*iterations_per_patient
 	
@@ -258,9 +258,14 @@ def train_net(folder, train_set, validation_set, test_set, edge_len, num_epochs 
 			for i in range(iterations_per_patient):
 				inputs, targets = get_balanced_batch(T1c_nonzero, OT_nonzero, edge_len, pixels_per_batch,T1, T1c, T2, FLAIR, OT)
 				assert len(inputs) == len(targets)
-				train_err += train_fn(inputs, targets)
-				train_acc += train_acc_fn(inputs, targets)
+				err = train_fn(inputs, targets)
+				acc = train_acc_fn(inputs, targets)
+				train_err += err
+				train_acc += acc
 				train_batches += 1
+				
+				if(err >= 1 or acc >= 1):
+					pdb.set_trace
 
 		# And a "full pass" over the validation data:
 		val_err = 0
@@ -277,13 +282,16 @@ def train_net(folder, train_set, validation_set, test_set, edge_len, num_epochs 
 				val_err += err
 				val_acc += acc
 				val_batches += 1
+				
+				if(err >= 1 or acc >= 1):
+					pdb.set_trace
 
 		# Then we print the results for this epoch:
 		print("Epoch {} of {} took {:.3f}s".format(
 			epoch + 1, num_epochs, time.time() - start_time))
 		print("  training loss:\t\t{:.6f}".format(train_err / train_batches))
 		print("  training accuracy:\t\t{:.2f} %".format(
-			train_acc / val_batches * 100))
+			train_acc / train_batches * 100))
 		print("  validation loss:\t\t{:.6f}".format(val_err / val_batches))
 		print("  validation accuracy:\t\t{:.2f} %".format(
 			val_acc / val_batches * 100))
@@ -363,7 +371,7 @@ def main(num_epochs=500,percent_validation=0.05,percent_test=0.10,edge_len=33,
 	#lr = lr.astype(np.float32)
 	l1_reg = np.asarray([0.0])
 	l2_reg = np.asarray([0.0])
-	lr = np.asarray([0.00001]) #0.001])
+	lr = np.asarray([0.001]) #0.001])
 	lr = lr.astype(np.float32)
 
 	best_l1 = l1_reg[0]
